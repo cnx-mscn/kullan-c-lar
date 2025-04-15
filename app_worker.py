@@ -1,68 +1,34 @@
 import streamlit as st
+import base64
 from PIL import Image
-import io
-import googlemaps
-import folium
-from streamlit_folium import st_folium
 
-# Google Maps API
-gmaps = googlemaps.Client(key="AIzaSyDwQVuPcON3rGSibcBrwhxQvz4HLTpF9Ws")  # 🔒 Buraya kendi API anahtarınızı yazın
+# PAGE CONFIG
+title = "Montaj İşçi Arayüzü"
+st.set_page_config(page_title=title, layout="wide")
+st.title(f"👷 {title}")
 
-st.set_page_config("İşçi Arayüzü", layout="wide")
-st.title("👷 İşçi Paneli")
+# Session Init
+if "aktif_ekip" not in st.session_state:
+    st.session_state.aktif_ekip = None
+if "ekipler" not in st.session_state:
+    st.session_state.ekipler = {}
 
-# SESSION INIT
-if "gorevler" not in st.session_state:
-    st.session_state.gorevler = {}
-
-# GÖREV SEÇİMİ
-if st.session_state.gorevler:
-    gorev_id = st.selectbox("📋 Atanmış Görevler", list(st.session_state.gorevler.keys()))
-
-    gorev = st.session_state.gorevler[gorev_id]
-    st.markdown(f"""
-    **📍 Şehir:** {gorev['sehir']}  
-    **🛠️ İş Tanımı:** {gorev['is_tanimi']}  
-    **📅 Tarih:** {gorev['tarih']}  
-    **⏱️ Montaj Süresi:** {gorev['montaj_suresi']} saat  
-    """)
-
-    # HARİTA GÖSTER
-    if "rota" in gorev:
-        st.subheader("🗺️ Harita")
-        harita = folium.Map(location=gorev["rota"]["start"], zoom_start=6)
-        folium.Marker(gorev["rota"]["start"], tooltip="Başlangıç", icon=folium.Icon(color="blue")).add_to(harita)
-        for i, stop in enumerate(gorev["rota"]["path"], 1):
-            folium.Marker(stop, tooltip=f"{i}. Nokta", icon=folium.DivIcon(
-                html=f"<div style='font-size: 12pt;color:red'><b>{i}</b></div>")
-            ).add_to(harita)
-        folium.PolyLine(gorev["rota"]["path"], color="green", weight=3).add_to(harita)
-        st_folium(harita, height=500)
-
-    # FOTO YÜKLEME
-    st.subheader("📤 Görevi Tamamla ve Fotoğraf Yükle")
-    fotograf = st.file_uploader("Montaj tamamlandıysa fotoğraf yükleyin", type=["jpg", "jpeg", "png"])
-    yeni_is_tanimi = st.text_area("İş Tanımını Detaylandır")
-
-    if fotograf and yeni_is_tanimi:
-        if st.button("✅ Görevi Tamamla"):
-            img = Image.open(fotograf)
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-            buffer.seek(0)
-
-            gorev["fotograf"] = buffer.read()
-            gorev["is_tanimi"] = yeni_is_tanimi
-            gorev["tamamlandi"] = True
-            gorev["onay"] = False
-            st.session_state.gorevler[gorev_id] = gorev
-            st.success("Görev başarıyla tamamlandı. Yönetici onayı bekleniyor.")
-
-            # Fotoğraf yüklendiğinde yöneticiyi bilgilendiren bir bildirim gönderelim
-            # Bu bildirim için örnek: bir metin mesajı veya veri kaydetme
-            # Bildirimi yöneticinin paneline gönderecek sistem burada devreye girmeli
-            st.session_state.bildirim = f"{st.session_state.aktif_ekip} ekip üyesi fotoğraf yükledi. Görev tamamlandı."
-            st.write(st.session_state.bildirim)
-            # Burada yöneticinin bildirimi görmesi için daha ileri bildirim teknolojisi eklenebilir
+# İşçiye Görev Atama ve Onay
+st.subheader("📝 Atanmış Görevler")
+if st.session_state.aktif_ekip:
+    ekip = st.session_state.ekipler.get(st.session_state.aktif_ekip)
+    if ekip:
+        for i, sehir in enumerate(ekip["visited_cities"]):
+            if sehir["foto"] is None:  # Fotoğraf yüklenmemişse görev tamamlanmamış
+                st.write(f"📍 {sehir['sehir']} - Onem: {sehir['onem']} - Montaj Süresi: {sehir['is_suresi']} saat")
+                photo = st.file_uploader(f"{sehir['sehir']} fotoğraf yükle", type=['jpg', 'jpeg', 'png'], key=f"photo_{i}")
+                if photo:
+                    # Fotoğraf yüklendikten sonra görevin tamamlandığı bildirilir
+                    sehir["foto"] = photo
+                    st.success("Fotoğraf yüklendi, görev tamamlandı.")
+            else:
+                st.write(f"📍 {sehir['sehir']} - Tamamlandı!")
+    else:
+        st.warning("Aktif ekip bulunamadı.")
 else:
-    st.info("📭 Henüz size atanmış bir görev bulunmamaktadır.")
+    st.warning("Aktif bir ekip seçilmedi.")

@@ -1,18 +1,13 @@
 import streamlit as st
 import googlemaps
+from datetime import timedelta
+import pandas as pd
+from haversine import haversine
 import folium
 from streamlit_folium import st_folium
-from datetime import timedelta
-from haversine import haversine
-from fpdf import FPDF
-import base64
-from io import BytesIO
-import pandas as pd
-import io
-from openpyxl.utils import get_column_letter
 
 # Google Maps API Anahtarınızı girin
-gmaps = googlemaps.Client(key="AIzaSyDwQVuPcON3rGSibcBrwhxQvz4HLTpF9Ws")
+gmaps = googlemaps.Client(key="YOUR_GOOGLE_MAPS_API_KEY")
 
 # PAGE CONFIG
 title = "Montaj Rota Planlayıcı"
@@ -20,10 +15,10 @@ st.set_page_config(page_title=title, layout="wide")
 st.title(f"🛠️ {title}")
 
 # GLOBAL Sabitler
-SAATLIK_ISCILIK = st.sidebar.number_input("Saatlik İŞçilik Ücreti (TL)", min_value=100, value=500, step=50)
-benzin_fiyati = st.sidebar.number_input("Benzin Fiyatı (TL/L)", min_value=0.1, value=10.0, step=0.1)
-km_basi_tuketim = st.sidebar.number_input("Km Başına Tüketim (L/km)", min_value=0.01, value=0.1, step=0.01)
-siralama_tipi = st.sidebar.radio("Rota Sıralama Tipi", ["Önem Derecesi", "En Kısa Rota"])
+SAATLIK_ISCILIK = 500
+benzin_fiyati = 10.0
+km_basi_tuketim = 0.1
+siralama_tipi = "Önem Derecesi"  # Varsayılan sıralama tipi
 
 # Session Init
 if "ekipler" not in st.session_state:
@@ -89,7 +84,8 @@ with st.form("sehir_form"):
                 "konum": konum,
                 "onem": onem,
                 "is_suresi": is_suresi,
-                "tarih": str(tarih)
+                "tarih": str(tarih),
+                "foto": None  # Fotoğraf ekleme alanı
             })
             st.success(f"{sehir_adi} eklendi.")
         else:
@@ -123,100 +119,17 @@ if st.session_state.baslangic_konum:
         baslangic = sehir["konum"]
 
     st_folium(harita, width=700)
-else:
-    st.warning("Başlangıç konumunu belirleyin.")
 
-# Gelişmiş Maliyet Hesaplama
-st.subheader("📝 Ekstra Maliyet Hesaplamaları")
-otel_masrafi = st.number_input("Otel Masrafı (TL)", min_value=0, value=0)
-yemek_masrafi = st.number_input("Yemek Masrafı (TL)", min_value=0, value=0)
-
-# Excel ve PDF Çıktısı
-def generate_excel():
-    data = []
-    for ekip, details in st.session_state.ekipler.items():
-        for sehir in details["visited_cities"]:
-            yol_masrafi = haversine(
-                (st.session_state.baslangic_konum["lat"], st.session_state.baslangic_konum["lng"]),
-                (sehir["konum"]["lat"], sehir["konum"]["lng"])
-            ) * km_basi_tuketim * benzin_fiyati
-            iscik_maliyet = sehir["is_suresi"] * SAATLIK_ISCILIK
-            toplam_maliyet = yol_masrafi + iscik_maliyet + otel_masrafi + yemek_masrafi
-
-            data.append({
-                "Ekip Adı": ekip,
-                "Şehir": sehir["sehir"],
-                "Montaj Süre (saat)": sehir["is_suresi"],
-                "Önem Derecesi": sehir["onem"],
-                "İşçilik Maliyeti (TL)": round(iscik_maliyet, 2),
-                "Yol Masrafı (TL)": round(yol_masrafi, 2),
-                "Otel Masrafı (TL)": otel_masrafi,
-                "Yemek Masrafı (TL)": yemek_masrafi,
-                "Toplam Maliyet (TL)": round(toplam_maliyet, 2),
-                "Ekip Üyeleri": ", ".join(details["members"]),
-            })
-
-    df = pd.DataFrame(data)
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name="Montaj Planı")
-        worksheet = writer.sheets["Montaj Planı"]
-        for i, col in enumerate(df.columns, 1):
-            max_len = max(df[col].astype(str).map(len).max(), len(col))
-            worksheet.column_dimensions[get_column_letter(i)].width = max_len + 5
-    excel_buffer.seek(0)
-    return excel_buffer
-
-# Excel Raporu
-st.download_button(
-    label="Excel Olarak İndir",
-    data=generate_excel(),
-    file_name="montaj_plani.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-)
-
-# PDF Raporu
-def generate_pdf():
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Montaj Planı Raporu", ln=True, align="C")
-
-    data = []
-    for ekip, details in st.session_state.ekipler.items():
-        for sehir in details["visited_cities"]:
-            yol_masrafi = haversine(
-                (st.session_state.baslangic_konum["lat"], st.session_state.baslangic_konum["lng"]),
-                (sehir["konum"]["lat"], sehir["konum"]["lng"])
-            ) * km_basi_tuketim * benzin_fiyati
-            iscik_maliyet = sehir["is_suresi"] * SAATLIK_ISCILIK
-            toplam_maliyet = yol_masrafi + iscik_maliyet + otel_masrafi + yemek_masrafi
-
-            data.append([
-                ekip,
-                sehir["sehir"],
-                sehir["is_suresi"],
-                sehir["onem"],
-                round(iscik_maliyet, 2),
-                round(yol_masrafi, 2),
-                otel_masrafi,
-                yemek_masrafi,
-                round(toplam_maliyet, 2),
-                ", ".join(details["members"]),
-            ])
-
-    for row in data:
-        pdf.cell(200, 10, txt=" | ".join(map(str, row)), ln=True)
-
-    pdf_output = io.BytesIO()
-    pdf.output(pdf_output)
-    pdf_output.seek(0)
-    return pdf_output
-
-# PDF Raporu
-st.download_button(
-    label="PDF Olarak İndir",
-    data=generate_pdf(),
-    file_name="montaj_plani.pdf",
-    mime="application/pdf",
-)
+# İşçiye Görev Atama ve Onay
+st.subheader("📝 Atanmış Görevler")
+for ekip, details in st.session_state.ekipler.items():
+    if ekip == st.session_state.aktif_ekip:
+        for i, sehir in enumerate(details["visited_cities"]):
+            if sehir["foto"] is None:  # Fotoğraf yüklenmemişse görev tamamlanmamış
+                st.write(f"📍 {sehir['sehir']} - Onem: {sehir['onem']} - Montaj Süresi: {sehir['is_suresi']} saat")
+                photo = st.file_uploader(f"{sehir['sehir']} fotoğraf yükle", type=['jpg', 'jpeg', 'png'], key=f"photo_{i}")
+                if photo:
+                    sehir["foto"] = photo
+                    st.success("Fotoğraf yüklendi, görev tamamlandı.")
+            else:
+                st.write(f"📍 {sehir['sehir']} - Tamamlandı!")

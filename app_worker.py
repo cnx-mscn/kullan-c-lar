@@ -58,5 +58,11 @@ if st.session_state.gorevler:
             st.session_state.gorevler[gorev_id] = gorev
             st.success("Görev başarıyla tamamlandı. Yönetici onayı bekleniyor.")
 
+            # Fotoğraf yüklendiğinde yöneticiyi bilgilendiren bir bildirim gönderelim
+            # Bu bildirim için örnek: bir metin mesajı veya veri kaydetme
+            # Bildirimi yöneticinin paneline gönderecek sistem burada devreye girmeli
+            st.session_state.bildirim = f"{st.session_state.aktif_ekip} ekip üyesi fotoğraf yükledi. Görev tamamlandı."
+            st.write(st.session_state.bildirim)
+            # Burada yöneticinin bildirimi görmesi için daha ileri bildirim teknolojisi eklenebilir
 else:
     st.info("📭 Henüz size atanmış bir görev bulunmamaktadır.")

@@ -6,3 +6,13 @@ pandas
 openpyxl
 fpdf
 Pillow
+streamlit
+pandas
+geopy
+folium
+streamlit-folium
+googlemaps
+haversine
+fpdf
+openpyxl
+fpdf2

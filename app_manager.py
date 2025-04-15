@@ -174,3 +174,49 @@ st.download_button(
     file_name="montaj_plani.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
+
+# PDF Raporu
+def generate_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Montaj Planı Raporu", ln=True, align="C")
+
+    data = []
+    for ekip, details in st.session_state.ekipler.items():
+        for sehir in details["visited_cities"]:
+            yol_masrafi = haversine(
+                (st.session_state.baslangic_konum["lat"], st.session_state.baslangic_konum["lng"]),
+                (sehir["konum"]["lat"], sehir["konum"]["lng"])
+            ) * km_basi_tuketim * benzin_fiyati
+            iscik_maliyet = sehir["is_suresi"] * SAATLIK_ISCILIK
+            toplam_maliyet = yol_masrafi + iscik_maliyet + otel_masrafi + yemek_masrafi
+
+            data.append([
+                ekip,
+                sehir["sehir"],
+                sehir["is_suresi"],
+                sehir["onem"],
+                round(iscik_maliyet, 2),
+                round(yol_masrafi, 2),
+                otel_masrafi,
+                yemek_masrafi,
+                round(toplam_maliyet, 2),
+                ", ".join(details["members"]),
+            ])
+
+    for row in data:
+        pdf.cell(200, 10, txt=" | ".join(map(str, row)), ln=True)
+
+    pdf_output = io.BytesIO()
+    pdf.output(pdf_output)
+    pdf_output.seek(0)
+    return pdf_output
+
+# PDF Raporu
+st.download_button(
+    label="PDF Olarak İndir",
+    data=generate_pdf(),
+    file_name="montaj_plani.pdf",
+    mime="application/pdf",
+)

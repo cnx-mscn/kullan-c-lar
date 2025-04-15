@@ -29,7 +29,7 @@ if "baslangic_konum" not in st.session_state:
     st.session_state.baslangic_konum = None
 
 # Ekip Yönetimi
-st.sidebar.subheader("👷 Ekip Yönetimi")
+st.sidebar.subheader("👷 çağla Ekip Yönetimi")
 ekip_adi = st.sidebar.text_input("Yeni Ekip Adı")
 if st.sidebar.button("➕ Ekip Oluştur") and ekip_adi:
     if ekip_adi not in st.session_state.ekipler:

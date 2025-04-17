@@ -1,34 +1,46 @@
+# app_worker.py
 import streamlit as st
-import base64
-from PIL import Image
 
-# PAGE CONFIG
-title = "Montaj İşçi Arayüzü"
-st.set_page_config(page_title=title, layout="wide")
-st.title(f"👷 {title}")
+st.set_page_config(page_title="İşçi Paneli", layout="wide")
+st.title("👷 Montaj İşçi Paneli")
 
-# Session Init
+# Giriş Kontrolü
+if "giris_tipi" not in st.session_state:
+    st.session_state.giris_tipi = st.radio("Giriş tipi seçin:", ["Yönetici", "İşçi"])
+
+if st.session_state.giris_tipi != "İşçi":
+    st.warning("Bu sayfa sadece işçi girişi içindir.")
+    st.stop()
+
 if "aktif_ekip" not in st.session_state:
     st.session_state.aktif_ekip = None
 if "ekipler" not in st.session_state:
     st.session_state.ekipler = {}
 
-# İşçiye Görev Atama ve Onay
-st.subheader("📝 Atanmış Görevler")
+aktif_secim = st.selectbox("Ekip Seç", list(st.session_state.ekipler.keys()) if st.session_state.ekipler else [])
+st.session_state.aktif_ekip = aktif_secim
+
+# Görevler
 if st.session_state.aktif_ekip:
     ekip = st.session_state.ekipler.get(st.session_state.aktif_ekip)
     if ekip:
+        st.subheader(f"{aktif_secim} ekibine atanmış görevler")
         for i, sehir in enumerate(ekip["visited_cities"]):
-            if sehir["foto"] is None:  # Fotoğraf yüklenmemişse görev tamamlanmamış
-                st.write(f"📍 {sehir['sehir']} - Onem: {sehir['onem']} - Montaj Süresi: {sehir['is_suresi']} saat")
-                photo = st.file_uploader(f"{sehir['sehir']} fotoğraf yükle", type=['jpg', 'jpeg', 'png'], key=f"photo_{i}")
-                if photo:
-                    # Fotoğraf yüklendikten sonra görevin tamamlandığı bildirilir
-                    sehir["foto"] = photo
-                    st.success("Fotoğraf yüklendi, görev tamamlandı.")
+            if not sehir["foto"]:
+                st.write(f"📍 {sehir['sehir']} - {sehir['tarih']} - Süre: {sehir['is_suresi']} saat")
+                foto = st.file_uploader(f"Fotoğraf yükle ({sehir['sehir']})", type=["jpg", "jpeg", "png"], key=f"foto_{i}")
+                if foto:
+                    sehir["foto"] = foto
+                    st.success("Fotoğraf yüklendi, onay bekleniyor.")
             else:
-                st.write(f"📍 {sehir['sehir']} - Tamamlandı!")
+                if sehir["onay"] == True:
+                    st.success(f"{sehir['sehir']} ✅ Onaylandı")
+                elif sehir["onay"] == False:
+                    st.error(f"{sehir['sehir']} ❌ Reddedildi, tekrar yükleyin")
+                    sehir["foto"] = None
+                else:
+                    st.info(f"{sehir['sehir']} ⏳ Onay bekleniyor")
     else:
-        st.warning("Aktif ekip bulunamadı.")
+        st.warning("Ekip verisi bulunamadı.")
 else:
-    st.warning("Aktif bir ekip seçilmedi.")
+    st.warning("Lütfen bir ekip seçin.")
